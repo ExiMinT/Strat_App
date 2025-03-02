@@ -1,53 +1,32 @@
-import asyncio
-import websockets
-import json
+import pusher
 
-clients = {}
+# Initialize Pusher
+pusher_client = pusher.Pusher(
+    app_id="1951027",
+    key="0f596af12f8e7ad77410",
+    secret="0d7a72b3befa959fa480",
+    cluster="eu",
+    ssl=True
+)
 
-
-async def handle_connection(websocket):  # Accept two arguments
-    client_id = str(websocket.remote_address)
-    clients[client_id] = websocket
-    print(f"New connection from {client_id}")
-
-    try:
-        async for message in websocket:
-            data = json.loads(message)
-
-            if data["action"] == "select_strategy":
-                await handle_strategy_selection(data)
-
-            elif data["action"] == "join_lobby":
-                await handle_join_lobby(data, websocket)
-
-            else:
-                print(f"Unhandled action: {data['action']}")
-
-    except websockets.exceptions.ConnectionClosed:
-        print(f"Connection closed from {client_id}")
-    finally:
-        clients.pop(client_id, None)
-
-
-async def handle_strategy_selection(data):
+def handle_strategy_selection(data):
+    """Broadcast the selected strategy to all clients in the lobby."""
     strategy_name = data["strategy"]
-    message = {"action": "update_strategy", "strategy": strategy_name}
+    lobby_id = data["lobby_id"]
 
-    for client in clients.values():
-        await client.send(json.dumps(message))
+    # Trigger an event on the lobby channel
+    pusher_client.trigger(f"lobby-{lobby_id}", "update_strategy", {"strategy": strategy_name})
 
-
-async def handle_join_lobby(data, websocket):
+def handle_join_lobby(data):
+    """Handle a client joining a lobby."""
     lobby_id = data["lobby_id"]
     print(f"Client joined lobby: {lobby_id}")
-    join_message = {"action": "lobby_joined", "lobby_id": lobby_id}
 
-
-async def start_server():
-    async with websockets.serve(handle_connection, "localhost", 8080):
-        print("WebSocket server running on ws://localhost:8080")
-        await asyncio.Future()  # Keep server running
-
-
+# Example usage (replace your WebSocket server logic with Pusher)
 if __name__ == "__main__":
-    asyncio.run(start_server())
+    # Simulate a strategy selection
+    handle_strategy_selection({
+        "action": "select_strategy",
+        "strategy": "Rush B",
+        "lobby_id": "default_lobby"
+    })
