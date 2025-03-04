@@ -1,6 +1,6 @@
 
 
-
+import uuid
 import sqlite3
 import time
 
@@ -422,6 +422,8 @@ class StrategyListScreen(Screen):
 class PlayerScreen(Screen):
     def __init__(self, **kwargs):
         super(PlayerScreen, self).__init__(**kwargs)
+        self.client_id = str(uuid.uuid4())  # Generate a unique client ID
+        self.lobby_id = "default_lobby"
         self.layout = BoxLayout(orientation='vertical', spacing=15, padding=20)
 
         # Strategy display
@@ -430,35 +432,36 @@ class PlayerScreen(Screen):
 
         # Back Button
         self.back_btn = Button(text="Back", size_hint=(1, 0.2))
-        self.back_btn.bind(on_press=lambda x: setattr(self.manager, "current", "main_screen"))  # Change "main_screen" if needed
+        self.back_btn.bind(on_press=lambda x: setattr(self.manager, "current", "main_screen"))
         self.layout.add_widget(self.back_btn)
 
         self.add_widget(self.layout)
 
-        self.lobby_id = "default_lobby"  # Ensure this matches the IGL lobby
-
         # Start the WebSocket client in an async event loop
-        self.websocket_task = asyncio.ensure_future(self.websocket_client())  # Schedule the async task
+        self.websocket_task = asyncio.ensure_future(self.websocket_client())
 
     def update_strategy(self, strategy):
         """Update the UI with the received strategy."""
-        # We use Clock.schedule_once to update the UI on the main thread
         Clock.schedule_once(lambda dt: setattr(self.title, 'text', f"Current Strategy: {strategy}"))
 
     async def websocket_client(self):
         """WebSocket client to listen for strategy updates."""
         try:
             async with websockets.connect("ws://35.197.214.65:8080") as websocket:
-                # Join the lobby
+                print("WebSocket connected")  # Debug log
+                # Join the lobby with a unique client ID
                 join_message = {
                     "action": "join_lobby",
-                    "lobby_id": self.lobby_id
+                    "lobby_id": self.lobby_id,
+                    "client_id": self.client_id
                 }
                 await websocket.send(json.dumps(join_message))
+                print(f"Sent join message: {join_message}")  # Debug log
 
                 while True:
                     try:
                         message = await websocket.recv()
+                        print(f"Received message: {message}")  # Debug log
 
                         # Check if the message is empty
                         if not message:
@@ -468,6 +471,7 @@ class PlayerScreen(Screen):
                         data = json.loads(message)
 
                         if data.get("action") == "update_strategy":
+                            print(f"Updating strategy: {data['strategy']}")  # Debug log
                             self.update_strategy(data["strategy"])
 
                     except json.JSONDecodeError as e:
